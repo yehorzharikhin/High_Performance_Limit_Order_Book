@@ -1,0 +1,10 @@
+# Ignore build artifacts
+/build/
+*.o
+*.exe
+*.out
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
