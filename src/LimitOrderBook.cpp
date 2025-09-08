@@ -1,23 +1,23 @@
 #include "LimitOrderBook.h"
 using namespace std;
 
-LimitOrderBook::LimitOrderBook() : nextOrderId_(1), nextTimestamp_(1) {}
+LimitOrderBook::LimitOrderBook() : nextOrderId_(1), nextTs_(1) { }
 
 OrderId LimitOrderBook::insertLimitOrder(bool isBuy, Price price, Quantity qty, vector<Trade>& trades) {
     trades.clear();
     if (qty <= 0) return 0;
 
     OrderId oid = nextOrderId_++;
-    uint64_t ts = nextTimestamp_++;
+    Timestamp ts = nextTs_++;
 
-    // Try to match immediately
+    // Try to match
     if (isBuy) {
-        matchBuy(price, qty, trades);
+        matchBuy(oid, price, qty, trades);
     } else {
-        matchSell(price, qty, trades);
+        matchSell(oid, price, qty, trades);
     }
 
-    // If remaining qty > 0, add to resting book
+    // If remaining qty > 0, add to book
     if (qty > 0) {
         Order o{oid, price, qty, isBuy, ts};
         if (isBuy) {
@@ -27,10 +27,21 @@ OrderId LimitOrderBook::insertLimitOrder(bool isBuy, Price price, Quantity qty, 
                 pl.price = price;
                 pl.orders.push_back(o);
                 pl.totalQty = qty;
-                buys_.emplace(price, move(pl));
+                auto inserted = buys_.emplace(price, move(pl)).first;
+                // store index: find the list iterator
+                auto &ordersRef = inserted->second.orders;
+                auto orderIt = prev(ordersRef.end());
+                Location loc;
+                loc.isBuy = true;
+                loc.buyLevelIt = inserted;
+                loc.orderIt = orderIt;
+                orderIndex_[oid] = move(loc);
             } else {
                 it->second.orders.push_back(o);
                 it->second.totalQty += qty;
+                auto orderIt = prev(it->second.orders.end());
+                Location loc; loc.isBuy = true; loc.buyLevelIt = it; loc.orderIt = orderIt;
+                orderIndex_[oid] = move(loc);
             }
         } else {
             auto it = sells_.find(price);
@@ -39,77 +50,90 @@ OrderId LimitOrderBook::insertLimitOrder(bool isBuy, Price price, Quantity qty, 
                 pl.price = price;
                 pl.orders.push_back(o);
                 pl.totalQty = qty;
-                sells_.emplace(price, move(pl));
+                auto inserted = sells_.emplace(price, move(pl)).first;
+                auto &ordersRef = inserted->second.orders;
+                auto orderIt = prev(ordersRef.end());
+                Location loc; loc.isBuy = false; loc.sellLevelIt = inserted; loc.orderIt = orderIt;
+                orderIndex_[oid] = move(loc);
             } else {
                 it->second.orders.push_back(o);
                 it->second.totalQty += qty;
+                auto orderIt = prev(it->second.orders.end());
+                Location loc; loc.isBuy = false; loc.sellLevelIt = it; loc.orderIt = orderIt;
+                orderIndex_[oid] = move(loc);
             }
         }
-        orderIndex_[oid] = OrderLocation{isBuy, price};
     } else {
-        // fully filled - don't insert into book; still register id if needed
-        orderIndex_[oid] = OrderLocation{isBuy, price};
+        // Fully filled immediately: nothing to add to index (no resting order).
     }
-
     return oid;
 }
 
-void LimitOrderBook::matchBuy(Price price, Quantity &qty, vector<Trade>& trades) {
-    // while we have qty to buy and there is a best sell with price <= buy price
+void LimitOrderBook::matchBuy(OrderId incomingId, Price price, Quantity &qty, vector<Trade>& trades) {
     while (qty > 0 && !sells_.empty()) {
         auto bestIt = sells_.begin(); // lowest sell price
-        if (bestIt->first > price) break; // best sell price too high
+        if (bestIt->first > price) break;
 
         PriceLevel &pl = bestIt->second;
-
-        // iterate through orders at this price level
         while (qty > 0 && !pl.orders.empty()) {
             Order &rest = pl.orders.front();
             Quantity tradeQty = min(qty, rest.qty);
 
-            // buyer id unknown yet (we register id outside); we will set buyer id later,
-            // for now we need to create a trade with buyerId placeholder -> we'll use 0
-            // But better: the calling code provided oid; however this function does not know it.
-            // To keep code simple, we'll emit trades with buyerId=0 and sellerId=rest.id.
-            // In practice you would pass buyerId into matchBuy; to keep this demo simple:
-            trades.emplace_back(0, rest.id, pl.price, tradeQty);
+            Trade t;
+            t.buyerId = incomingId;
+            t.sellerId = rest.id;
+            t.price = pl.price;
+            t.qty = tradeQty;
+            t.ts = nextTs_++;
+
+            trades.push_back(t);
 
             qty -= tradeQty;
             rest.qty -= tradeQty;
             pl.totalQty -= tradeQty;
 
             if (rest.qty == 0) {
-                // fully filled resting order
-                orderIndex_.erase(rest.id);
+                // Erase resting order from index and pop
+                auto itfind = orderIndex_.find(rest.id);
+                if (itfind != orderIndex_.end()) orderIndex_.erase(itfind);
                 pl.orders.pop_front();
+            } else {
+                // partially filled resting order: update and break if incoming filled
             }
         }
 
-        // remove exhausted price level
         if (pl.orders.empty()) {
             sells_.erase(bestIt);
         }
     }
 }
 
-void LimitOrderBook::matchSell(Price price, Quantity &qty, vector<Trade>& trades) {
+void LimitOrderBook::matchSell(OrderId incomingId, Price price, Quantity &qty, vector<Trade>& trades) {
     while (qty > 0 && !buys_.empty()) {
-        auto bestIt = buys_.begin(); // highest buy price due to greater comparator
-        if (bestIt->first < price) break; // best buy too low
+        auto bestIt = buys_.begin(); // highest buy price
+        if (bestIt->first < price) break;
 
         PriceLevel &pl = bestIt->second;
-
         while (qty > 0 && !pl.orders.empty()) {
-            Order &rest = pl.orders.front();
+            Order &rest = pl.orders.front(); // oldest buy at this price
             Quantity tradeQty = min(qty, rest.qty);
-            trades.emplace_back(rest.id, 0, pl.price, tradeQty); // buyer id = rest.id, seller id placeholder = 0
+
+            Trade t;
+            t.buyerId = rest.id;
+            t.sellerId = incomingId;
+            t.price = pl.price;
+            t.qty = tradeQty;
+            t.ts = nextTs_++;
+
+            trades.push_back(t);
 
             qty -= tradeQty;
             rest.qty -= tradeQty;
             pl.totalQty -= tradeQty;
 
             if (rest.qty == 0) {
-                orderIndex_.erase(rest.id);
+                auto itfind = orderIndex_.find(rest.id);
+                if (itfind != orderIndex_.end()) orderIndex_.erase(itfind);
                 pl.orders.pop_front();
             }
         }
@@ -118,6 +142,45 @@ void LimitOrderBook::matchSell(Price price, Quantity &qty, vector<Trade>& trades
             buys_.erase(bestIt);
         }
     }
+}
+
+bool LimitOrderBook::cancelOrder(OrderId id) {
+    auto it = orderIndex_.find(id);
+    if (it == orderIndex_.end()) return false;
+    Location loc = it->second;
+    if (loc.isBuy) {
+        auto levelIt = loc.buyLevelIt;
+        PriceLevel &pl = levelIt->second;
+        Quantity q = loc.orderIt->qty;
+        pl.totalQty -= q;
+        pl.orders.erase(loc.orderIt);
+        if (pl.orders.empty()) buys_.erase(levelIt);
+    } else {
+        auto levelIt = loc.sellLevelIt;
+        PriceLevel &pl = levelIt->second;
+        Quantity q = loc.orderIt->qty;
+        pl.totalQty -= q;
+        pl.orders.erase(loc.orderIt);
+        if (pl.orders.empty()) sells_.erase(levelIt);
+    }
+    orderIndex_.erase(it);
+    return true;
+}
+
+bool LimitOrderBook::reduceOrderQuantity(OrderId id, Quantity newQty) {
+    auto it = orderIndex_.find(id);
+    if (it == orderIndex_.end()) return false;
+    Location &loc = it->second;
+    Order &o = *(loc.orderIt);
+    if (newQty >= o.qty) return false; // only allow reduce
+    Quantity diff = o.qty - newQty;
+    o.qty = newQty;
+    if (loc.isBuy) {
+        loc.buyLevelIt->second.totalQty -= diff;
+    } else {
+        loc.sellLevelIt->second.totalQty -= diff;
+    }
+    return true;
 }
 
 void LimitOrderBook::printBook(ostream& os) const {

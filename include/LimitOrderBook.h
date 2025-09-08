@@ -13,33 +13,46 @@ using namespace std;
 using Price = int64_t;
 using Quantity = int64_t;
 using OrderId = uint64_t;
-
-// A trade: (buyerId, sellerId, price, quantity)
-using Trade = tuple<OrderId, OrderId, Price, Quantity>;
+using Timestamp = uint64_t;
 
 struct Order {
     OrderId id;
-    Price price;       // integer ticks
-    Quantity qty;      // remaining quantity
+    Price price;
+    Quantity qty;
     bool isBuy;
-    uint64_t timestamp;
+    Timestamp ts;
+};
+
+struct Trade {
+    OrderId buyerId;
+    OrderId sellerId;
+    Price price;
+    Quantity qty;
+    Timestamp ts;
 };
 
 class LimitOrderBook {
 public:
     LimitOrderBook();
 
-    // Insert a limit order; returns the order id issued.
-    // Emits trades for any matches (returns vector of trades).
+    // Insert a limit order and return the assigned order id.
+    // The vector trades will be populated with trades executed by this insertion.
     OrderId insertLimitOrder(bool isBuy, Price price, Quantity qty, vector<Trade>& trades);
 
-    // Print top-of-book for debugging
+    // Cancel a resting order by id. Returns true if cancelled.
+    bool cancelOrder(OrderId id);
+
+    // Reduce quantity of a resting order (amend) - sets remaining qty to newQty if smaller.
+    // Returns true if amended; false if order not found or newQty >= current qty.
+    bool reduceOrderQuantity(OrderId id, Quantity newQty);
+
+    // Print top-of-book and summary
     void printBook(ostream& os = cout) const;
 
 private:
     struct PriceLevel {
         Price price;
-        list<Order> orders;   // FIFO queue of orders at this price
+        list<Order> orders;
         Quantity totalQty = 0;
     };
 
@@ -49,22 +62,43 @@ private:
     BuyMap buys_;
     SellMap sells_;
 
-    // Map order id -> iterator to PriceLevel + iterator to order (for cancellation/lookup)
-    // We'll store minimal meta to find and remove orders later if needed.
+    // Location of a resting order in the book
     struct OrderLocation {
         bool isBuy;
-        Price price;
-        // We can't store list::iterator type here cleanly in header without forward declarations,
-        // so for now keep location info and skip cancel implementation.
+        // iterator pointing to PriceLevel in buys_ or sells_
+        // use map<...>::iterator; types available here:
+        // We'll store generic iterators as void*? No — we can typedef them:
     };
-    unordered_map<OrderId, OrderLocation> orderIndex_;
+
+    // We'll store the iterators in a separate structure that depends on the class types:
+    struct OrderRef {
+        bool isBuy;
+        // Price level iterator types
+        // (declare after type aliases so they are visible to the compiler)
+        // these typedefs are here for readability.
+    };
+
+    // A map from order id -> pair(priceLevelIt, orderIt)
+    // We define type aliases to store iterators.
+    using BuyLevelIt = BuyMap::iterator;
+    using SellLevelIt = SellMap::iterator;
+    using OrderListIt = list<Order>::iterator;
+
+    struct Location {
+        bool isBuy;
+        // one of these is valid depending on isBuy
+        BuyLevelIt buyLevelIt;
+        SellLevelIt sellLevelIt;
+        OrderListIt orderIt;
+    };
+
+    unordered_map<OrderId, Location> orderIndex_;
 
     OrderId nextOrderId_;
-    uint64_t nextTimestamp_;
+    Timestamp nextTs_;
 
-    // Matching helper
-    void matchBuy(Price price, Quantity &qty, vector<Trade>& trades);
-    void matchSell(Price price, Quantity &qty, vector<Trade>& trades);
+    // Helpers
+    void matchBuy(OrderId incomingId, Price price, Quantity &qty, vector<Trade>& trades);
+    void matchSell(OrderId incomingId, Price price, Quantity &qty, vector<Trade>& trades);
 };
-
 #endif // LIMIT_ORDER_BOOK_H
