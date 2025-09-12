@@ -16,5 +16,6 @@ endif()
 
 add_executable(orderbook
     src/main.cpp
-    src/LimitOrderBook.cpp
+    src/Book.cpp
+    src/Limit.cpp
 )

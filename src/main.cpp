@@ -1,54 +1,94 @@
-#include "LimitOrderBook.h"
 #include <iostream>
-#include <cassert>
+#include <fstream>
+#include <string>
+#include <random>
+#include <chrono>
+#include <vector>
+#include <algorithm>
+#include <numeric>
+#include "Book.h"
+#include "Order.h"
+#include "Transaction.h"
 
-void printTrades(const std::vector<Trade>& trades) {
-    if (trades.empty()) {
-        std::cout << "No trades executed.\n";
-        return;
-    }
-    std::cout << "Trades:\n";
-    for (const auto &t : trades) {
-        std::cout << "Buyer=" << t.buyerId << " Seller=" << t.sellerId
-                  << " Price=" << t.price << " Qty=" << t.qty << " TS=" << t.ts << "\n";
-    }
-}
+using namespace std;
+using namespace std::chrono;
 
 int main() {
-    LimitOrderBook lob;
-    std::vector<Trade> trades;
+    // === Configuration ===
+    const int N = 10000000; // number of test orders
+    const int MAX_PRICE = 100000;
+    const int MAX_SIZE = 1000;
 
-    // Add some resting sell orders
-    lob.insertLimitOrder(false, 10100, 50, trades); // sell 50 @ 101.00
-    lob.insertLimitOrder(false, 10200, 30, trades); // sell 30 @ 102.00
+    ofstream outfile("..\\data\\output.txt");
 
-    // Insert buy crossing both levels
-    OrderId buyId = lob.insertLimitOrder(true, 10200, 60, trades);
-    std::cout << "Inserted buy order id = " << buyId << "\n";
-    printTrades(trades);
-    lob.printBook();
+    Book lob;
+    vector<Order> orders(N);
+    map<long long, Order*> idToOrder;
+    outfile << "=== Limit Order Book Performance Test ===\n";
 
-    // Add some buys
-    lob.insertLimitOrder(true, 10050, 40, trades); // buy @ 100.50
-    lob.insertLimitOrder(true, 10100, 20, trades); // buy @ 101.00
+    // Random generator
+    random_device rd;
+    mt19937 gen(rd());
+    // mt19937 gen(123);
+    uniform_int_distribution<int> priceDist(1, MAX_PRICE);
+    uniform_int_distribution<int> sizeDist(1, MAX_SIZE);
+    uniform_int_distribution<int> sideDist(0, 1), typeDist(0, 1); // 0 = BUY, 1 = SELL
 
-    lob.printBook();
+    // Latency data
+    // vector<pair<long long, int>> latencies(N);
+    vector<long long> latencies(N);
 
-    // Cancel a resting order (pick an id that was resting)
-    // For demo we will place an order and cancel it.
-    std::vector<Trade> tmp;
-    OrderId oid = lob.insertLimitOrder(false, 10300, 100, tmp); // sell @ 103.00
-    std::cout << "Inserted sell order id = " << oid << "\n";
-    bool ok = lob.cancelOrder(oid);
-    std::cout << "Cancel order " << oid << " -> " << (ok ? "OK" : "NOT FOUND") << "\n";
-    lob.printBook();
+    auto start_all = high_resolution_clock::now();
 
-    // Reduce quantity example
-    OrderId smallBuy = lob.insertLimitOrder(true, 10050, 30, tmp);
-    std::cout << "Inserted small buy id = " << smallBuy << "\n";
-    bool reduced = lob.reduceOrderQuantity(smallBuy, 10);
-    std::cout << "Reduced order " << smallBuy << " -> " << (reduced ? "OK" : "FAILED") << "\n";
-    lob.printBook();
+    for (int i = 0; i < N; i++) {
+        // int orderType = typeDist(gen);
+        // Random order fields
+        long long id = lob.generateOrderID();
+        OrderSide side = sideDist(gen) ? OrderSide::BUY : OrderSide::SELL;
+        int shares = sizeDist(gen);
+        int price = priceDist(gen);
 
+        Order order(id, side, shares, price, i);
+        orders[i] = order;
+
+        auto start = high_resolution_clock::now();
+        lob.addOrder(&orders[i]);
+        auto end = high_resolution_clock::now();
+
+        long long latency = duration_cast<nanoseconds>(end - start).count();
+        latencies.push_back(latency);
+
+        start = high_resolution_clock::now();
+        lob.executeOrders(i++);
+        end = high_resolution_clock::now();
+
+        latency = duration_cast<nanoseconds>(end - start).count();
+        latencies.push_back(latency);
+    }
+
+    auto end_all = high_resolution_clock::now();
+    // long long total_time = duration_cast<nanoseconds>(end_all - start_all).count();
+    long long total_time = 0;
+    for (auto i : latencies)
+        total_time += i;
+
+    // === Stats ===
+    long long min_latency = *min_element(latencies.begin(), latencies.end());
+    long long max_latency = *max_element(latencies.begin(), latencies.end());
+    double avg_latency = (double)accumulate(latencies.begin(), latencies.end(), 0LL) / N;
+    double throughput = (double)N / (total_time / 1000000000.0); // orders per second
+
+    // === Output results ===
+    outfile << "Total orders processed: " << N << "\n";
+    outfile << "Total time: " << total_time / 1000000 << " ms\n";
+    outfile << "Throughput: " << throughput << " orders/sec\n";
+    outfile << "Latency (ns): min=" << min_latency
+            << " avg=" << avg_latency
+            << " max=" << max_latency << "\n";
+
+    // lob.PrintTransactions(outfile);
+
+    outfile << endl;
+    outfile.close();
     return 0;
 }
