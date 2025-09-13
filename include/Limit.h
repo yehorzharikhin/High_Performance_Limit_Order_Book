@@ -5,13 +5,13 @@
 
 class Limit {
 public:
+    // FIFO queue of orders at this price
+    Order *headOrder;
+    Order *tailOrder;
+
     int limitPrice;        // Price level
     int size;              // Number of orders at this price
     int totalVolume;       // Sum of shares at this price
-
-    // FIFO queue of orders at this price
-    Order* headOrder;
-    Order* tailOrder;
 
     // Constructor
     Limit(int price = 0)

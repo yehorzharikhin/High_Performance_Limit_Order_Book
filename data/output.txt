@@ -1,6 +1,21 @@
 === Limit Order Book Performance Test ===
-Total orders processed: 10000000
-Total time: 3271 ms
-Throughput: 3.05654e+06 orders/sec
-Latency (ns): min=0 avg=327.167 max=63648800
+Total orders processed: 10000010
+Total time: 1854 ms
+Throughput: 5.39208e+06 orders/sec
+Latency (ns): min=0 avg=185.457 max=20371000
+Add latency (ns): avg=159.506 %=0.690497
+Cancel latency (ns): avg=132.441 %=0.236078
+Execute latency (ns): avg=1194.23 %=0.0734244
+
+Executed transactions (3678289):
+Trade: 1773 @ 64038 (BuyID=0, SellID=0, Time=9)
+Trade: 7998 @ 64038 (BuyID=0, SellID=0, Time=9)
+Trade: 2649 @ 94873 (BuyID=0, SellID=0, Time=39)
+Trade: 1600 @ 94873 (BuyID=0, SellID=0, Time=39)
+Trade: 2069 @ 94444 (BuyID=0, SellID=0, Time=39)
+Trade: 87 @ 83837 (BuyID=0, SellID=0, Time=39)
+Trade: 1620 @ 83837 (BuyID=0, SellID=0, Time=39)
+Trade: 7306 @ 83837 (BuyID=0, SellID=0, Time=39)
+Trade: 1639 @ 40688 (BuyID=0, SellID=0, Time=39)
+Trade: 1819 @ 40688 (BuyID=0, SellID=0, Time=39)
 

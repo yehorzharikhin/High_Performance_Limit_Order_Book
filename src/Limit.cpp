@@ -35,9 +35,9 @@ Order* Limit::popOrder() {
     } else {
         tailOrder = nullptr; // now empty
     }
-    order->nextOrder = order->prevOrder = nullptr;
     size--;
     totalVolume -= order->shares;
+    order->Cancel();
     return order;
 }
 
@@ -52,7 +52,7 @@ void Limit::removeOrder(Order* order) {
 
     size--;
     totalVolume -= order->shares;
-    order->nextOrder = order->prevOrder = nullptr;
+    order->Cancel();
 }
 
 bool Limit::empty() const { return size == 0; }

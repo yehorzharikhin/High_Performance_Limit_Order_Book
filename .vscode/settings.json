@@ -3,6 +3,12 @@
         "iostream": "cpp",
         "iosfwd": "cpp",
         "fstream": "cpp",
-        "chrono": "cpp"
+        "chrono": "cpp",
+        "string": "cpp",
+        "unordered_map": "cpp",
+        "ostream": "cpp",
+        "algorithm": "cpp",
+        "numeric": "cpp",
+        "random": "cpp"
     }
 }

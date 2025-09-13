@@ -1,29 +1,46 @@
 #ifndef BOOK_H
 #define BOOK_H
 
-#include "Limit.h"
-#include "Transaction.h"
 #include <map>
 #include <vector>
 #include <random>
+#include "OrderPool.h"
+#include "Transaction.h"
+#include "Limit.h"
 using namespace std;
 
 class Book {
 public:
-    Book();
+    // Use ordered maps for price trees
+    vector<Limit> buyLimits;
+    vector<Limit> sellLimits;
+    map<int, bool, greater<int>> buyLimitsmp;
+    map<int, bool> sellLimitsmp;
+    OrderPool pool;
+
+    int N; // number of test orders
+    int MAX_PRICE;
+
+    int size;
+    int max_size;
+
+    int bestBid;
+    int bestAsk;
+
+    Book(const int n, const int max_p);
+
+    // Creating random IDs
+    int generateOrderID();
+
+    // Accessors for best bid/ask
+    Limit* getBestBid();
+    Limit* getBestAsk();
 
     // Insert a new order into the book
     void addOrder(Order* order);
 
     // Cancel an existing order
     void cancelOrder(Order* order);
-
-    // Accessors for best bid/ask
-    Limit* getBestBid() const;
-    Limit* getBestAsk() const;
-
-    // Creating random IDs
-    long long generateOrderID();
 
     // Add new transactions 
     void AddTransactions(vector<Transaction> new_transactions);
@@ -34,20 +51,19 @@ public:
     // Match and execute orders (main matching engine)
     vector<Transaction> executeOrders(int currentTime);
 
+    // Debug
+    void PrintPool(ostream &outfile = cout);
+
 private:
     mt19937_64 rng;
-    uniform_int_distribution<long long> dist;
-
-    // Use ordered maps for price trees
-    map<int, Limit*, greater<int>> buyTree; // highest price first
-    map<int, Limit*, less<int>> sellTree;   // lowest price first
+    uniform_int_distribution<int> dist;
 
     vector<Transaction> transactions;
 
-    void insertIntoBuyTree(map<int, Limit*, greater<int>>& tree, Order* order);
-    void insertIntoSellTree(map<int, Limit*, less<int>>& tree, Order* order);
-    void removeFromBuyTree(map<int, Limit*, greater<int>>& tree, Order* order);
-    void removeFromSellTree(map<int, Limit*, less<int>>& tree, Order* order);
+    void insertIntoBuy(Order* order);
+    void insertIntoSell(Order* order);
+    void removeFromBuy(Order* order);
+    void removeFromSell(Order* order);
 };
 
 #endif
