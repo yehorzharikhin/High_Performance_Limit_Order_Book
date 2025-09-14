@@ -61,10 +61,10 @@ void Book::PrintTransactions(ostream &outfile = cout) {
         int i = 0;
         outfile << "\nExecuted transactions (" << transactions.size() << "):\n";
         for (const auto& t : transactions) {
-            cout << "Trade: " << dec << t.shares << " @ " << t.price
-                 << ", SellID=" << hex << t.sellOrderID
-                 << " (BuyID=" << hex << t.buyOrderID
-                 << ", Time=" << dec << t.eventTime << ")\n";
+            cout << "Trade: " << t.shares << " @ " << t.price
+                 << ", SellID=" << t.sellOrderID
+                 << " (BuyID=" << t.buyOrderID
+                 << ", Time=" << t.eventTime << ")\n";
             if (++i > 9)
                 break;
         }
@@ -73,10 +73,10 @@ void Book::PrintTransactions(ostream &outfile = cout) {
         int i = 0;
         outfile << "\nExecuted transactions (" << transactions.size() << "):\n";
         for (const auto& t : transactions) {
-            outfile << "Trade: " << dec << t.shares << " @ " << t.price
-                << " (BuyID=" << hex << t.buyOrderID
-                << ", SellID=" << hex << t.sellOrderID
-                << ", Time=" << dec << t.eventTime << ")\n";
+            outfile << "Trade: " << t.shares << " @ " << t.price
+                << " (BuyID=" << t.buyOrderID
+                << ", SellID=" << t.sellOrderID
+                << ", Time=" << t.eventTime << ")\n";
             if (++i > 9)
                 break;
         }
@@ -90,15 +90,9 @@ void Book::PrintPool(ostream &outfile) {
 // -------- MATCHING ENGINE --------
 vector<Transaction> Book::executeOrders(int currentTime) {
     vector<Transaction> trades;
-    while (bestBid != -1 && bestAsk != MAX_PRICE + 1) {
-        Limit* bestBidTemp = getBestBid();
-        Limit* bestAskTemp = getBestAsk();
-        
-        if (bestBidTemp->getPrice() < bestAskTemp->getPrice()) break;
-        
-        Order* buyOrder = bestBidTemp->getHeadOrder();
-        Order* sellOrder = bestAskTemp->getHeadOrder();
-        if (!buyOrder || !sellOrder) break;
+    while (bestBid >= bestAsk) {        
+        Order* buyOrder = getBestBid()->getHeadOrder();
+        Order* sellOrder = getBestAsk()->getHeadOrder();
         
         int tradeShares = min(buyOrder->shares, sellOrder->shares);
         int tradePrice;

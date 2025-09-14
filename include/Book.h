@@ -14,6 +14,7 @@ public:
     // Use ordered maps for price trees
     vector<Limit> buyLimits;
     vector<Limit> sellLimits;
+    vector<Transaction> transactions;
     map<int, bool, greater<int>> buyLimitsmp;
     map<int, bool> sellLimitsmp;
     OrderPool pool;
@@ -57,8 +58,6 @@ public:
 private:
     mt19937_64 rng;
     uniform_int_distribution<int> dist;
-
-    vector<Transaction> transactions;
 
     void insertIntoBuy(Order* order);
     void insertIntoSell(Order* order);

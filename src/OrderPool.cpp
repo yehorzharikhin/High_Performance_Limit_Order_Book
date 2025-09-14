@@ -2,12 +2,13 @@
 #include "Order.h"
 #include "OrderPool.h"
 
-OrderPool::OrderPool(int cap = 1e6) {
+OrderPool::OrderPool(int cap = 1e5) {
     capacity = cap;
     pool.resize(capacity);
     freeArr.resize(capacity);
     freeList.reserve(capacity);
     for (int i = capacity - 1; i >= 0; i--) {
+        pool[i].idNumber = i;
         freeList.push_back(i);
         freeArr[i] = 0;
     }

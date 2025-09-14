@@ -1,0 +1,21 @@
+=== Limit Order Book Performance Test ===
+Total orders processed: 10000000
+Total time: 1310 ms
+Throughput: 7.63241e+06 orders/sec
+Latency (ns): min=0 avg=131.02 median=100 p99=600 p999=1300
+Add latency (ns): avg=106.639 median=100 p99=300 p999=1100 %=0.444241
+Cancel latency (ns): avg=101.56 median=100 p99=300 p999=700 %=0.111518
+Execute latency (ns): avg=162.797 median=100 p99=700 p999=1600 %=0.444241
+
+Executed transactions (3316969):
+Trade: 25 @ 3300 (BuyID=62377, SellID=43995, Time=3)
+Trade: 18 @ 3300 (BuyID=62539, SellID=43995, Time=3)
+Trade: 21 @ 3300 (BuyID=66771, SellID=43995, Time=3)
+Trade: 21 @ 3300 (BuyID=79639, SellID=43995, Time=3)
+Trade: 74 @ 1816 (BuyID=79639, SellID=45054, Time=7)
+Trade: 19 @ 1816 (BuyID=88842, SellID=45054, Time=7)
+Trade: 1 @ 1816 (BuyID=10423, SellID=45054, Time=7)
+Trade: 22 @ 9503 (BuyID=18346, SellID=47017, Time=10)
+Trade: 50 @ 9822 (BuyID=43818, SellID=47017, Time=16)
+Trade: 56 @ 2669 (BuyID=10423, SellID=43818, Time=18)
+
